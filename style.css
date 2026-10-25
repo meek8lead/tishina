@@ -1,0 +1,340 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', ui-monospace, monospace;
+  color: #ccc;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game-canvas {
+  display: block;
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+}
+
+#crosshair {
+  position: fixed;
+  top: 50%; left: 50%;
+  width: 4px; height: 4px;
+  background: rgba(200, 220, 220, 0.65);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+body.playing #crosshair { opacity: 1; }
+
+#hud {
+  position: fixed;
+  top: 24px; left: 24px;
+  display: flex; flex-direction: column; gap: 14px;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 1s;
+}
+body.playing #hud { opacity: 1; }
+
+#o2-hud, #battery-hud { display: flex; align-items: center; gap: 10px; }
+
+.hud-label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #6af;
+  opacity: 0.6;
+  min-width: 30px;
+}
+
+.bar {
+  width: 200px; height: 5px;
+  background: rgba(100, 150, 200, 0.12);
+  border: 1px solid rgba(100, 180, 220, 0.25);
+}
+#o2-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, #3af, #6cf);
+  transition: width 0.15s linear, background 0.5s;
+}
+#o2-fill.low { background: linear-gradient(90deg, #fa3, #fc4); }
+#o2-fill.critical {
+  background: linear-gradient(90deg, #900, #f00);
+  animation: o2-pulse 0.6s infinite alternate;
+}
+@keyframes o2-pulse { from { opacity: 0.6; } to { opacity: 1; } }
+
+#battery-segments { display: flex; gap: 3px; }
+.seg {
+  width: 20px; height: 8px;
+  background: rgba(200, 180, 100, 0.1);
+  border: 1px solid rgba(220, 200, 120, 0.25);
+  transition: all 0.2s;
+}
+.seg.on {
+  background: rgba(255, 220, 120, 0.85);
+  box-shadow: 0 0 6px rgba(255, 200, 100, 0.5);
+}
+
+#interact-prompt {
+  position: fixed;
+  top: 58%; left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: #bde;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#interact-prompt.visible { opacity: 1; }
+
+#message-flash {
+  position: fixed;
+  top: 20%; left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #f88;
+  text-shadow: 0 0 14px rgba(255, 40, 40, 0.6);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.5s;
+  pointer-events: none;
+  text-align: center;
+}
+#message-flash.visible { opacity: 1; }
+
+#charging-overlay {
+  position: fixed;
+  bottom: 90px; right: 90px;
+  text-align: center;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+#charging-overlay.visible { opacity: 1; }
+.crank {
+  width: 64px; height: 64px;
+  border: 2px solid rgba(255, 200, 100, 0.45);
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  position: relative;
+}
+.crank::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(255, 200, 100, 0.2);
+  border-radius: 50%;
+}
+.crank::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 4px; height: 22px;
+  background: rgba(255, 200, 100, 0.85);
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%);
+}
+#charging-overlay.spinning .crank { animation: spin 0.35s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.charging-text {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(255, 200, 100, 0.7);
+}
+
+#vignette {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%);
+  opacity: 0;
+  transition: opacity 1.2s;
+}
+body.playing #vignette { opacity: 1; }
+#vignette.critical {
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(60,0,0,0.85) 100%);
+  animation: vig-pulse 0.8s infinite alternate;
+}
+@keyframes vig-pulse { from { opacity: 0.7; } to { opacity: 1; } }
+
+body.underwater #vignette {
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(0, 12, 22, 0.92) 100%);
+  opacity: 1;
+}
+body.underwater #crosshair { background: rgba(120, 200, 220, 0.75); }
+
+#fade-overlay {
+  position: fixed; inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+  transition: opacity 0.4s;
+}
+
+.overlay {
+  position: fixed; inset: 0;
+  background: #000;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 100;
+  text-align: center;
+  padding: 40px;
+}
+.overlay.hidden { display: none; }
+
+.title {
+  font-size: 58px;
+  letter-spacing: 22px;
+  color: #6cf;
+  margin-bottom: 10px;
+  text-shadow: 0 0 30px rgba(100, 200, 255, 0.35);
+  animation: flicker 5s infinite;
+  padding-left: 22px;
+}
+@keyframes flicker {
+  0%, 92%, 100% { opacity: 1; }
+  93% { opacity: 0.35; }
+  94% { opacity: 1; }
+  96% { opacity: 0.6; }
+  97% { opacity: 1; }
+}
+.subtitle {
+  font-size: 12px;
+  letter-spacing: 8px;
+  color: rgba(180, 200, 220, 0.35);
+  margin-bottom: 55px;
+  padding-left: 8px;
+}
+
+button {
+  background: transparent;
+  border: 1px solid rgba(100, 180, 220, 0.45);
+  color: #8ce;
+  padding: 14px 44px;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+button:hover {
+  background: rgba(100, 180, 220, 0.08);
+  border-color: rgba(150, 220, 255, 0.8);
+  color: #cdf;
+  box-shadow: 0 0 24px rgba(100, 180, 220, 0.25);
+}
+
+.controls-hint {
+  margin-top: 60px;
+  font-size: 11px;
+  line-height: 2.2;
+  letter-spacing: 2px;
+  color: rgba(150, 170, 190, 0.35);
+}
+
+.death-text {
+  font-size: 28px;
+  letter-spacing: 10px;
+  color: #a44;
+  margin-bottom: 40px;
+}
+
+/* ─── Terminal ─── */
+#terminal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 80;
+}
+#terminal-overlay.hidden { display: none; }
+.crt {
+  width: 82%;
+  max-width: 900px;
+  height: 76%;
+  max-height: 620px;
+  background: #051005;
+  border: 2px solid #0a3a0a;
+  border-radius: 6px;
+  padding: 24px 32px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(50, 255, 80, 0.15), inset 0 0 60px rgba(20, 80, 20, 0.3);
+  font-family: 'Courier New', monospace;
+  color: #4ee04e;
+  text-shadow: 0 0 4px rgba(80, 255, 100, 0.5);
+  display: flex; flex-direction: column;
+}
+.crt-header {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #3a9a3a;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #0a3a0a;
+  padding-bottom: 10px;
+}
+#terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.7;
+  padding-right: 8px;
+}
+#terminal-body::-webkit-scrollbar { width: 4px; }
+#terminal-body::-webkit-scrollbar-thumb { background: #0a3a0a; }
+#terminal-text {
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#sluice-prompt {
+  margin-top: 24px;
+  border-top: 1px solid #0a3a0a;
+  padding-top: 16px;
+}
+#sluice-prompt.hidden { display: none; }
+.sluice-line {
+  color: #ffcc44;
+  text-shadow: 0 0 6px rgba(255, 180, 40, 0.5);
+  margin-bottom: 12px;
+  font-size: 13px;
+  animation: sluice-blink 1.2s infinite;
+}
+@keyframes sluice-blink { 0%,100%{opacity:1;} 50%{opacity:0.55;} }
+.sluice-choice { font-size: 14px; letter-spacing: 2px; }
+.sluice-key { color: #ffcc44; border: 1px solid #ffcc44; padding: 1px 6px; }
+.crt-footer {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px, transparent 2px,
+    rgba(0, 20, 0, 0.28) 3px, rgba(0, 20, 0, 0.28) 4px
+  );
+  mix-blend-mode: multiply;
+}
+
+#final-screen { background: #000; }
+#final-screen .final-text {
+  white-space: pre-line;
+  font-size: 16px;
+  letter-spacing: 3px;
+  color: #8aa;
+  line-height: 2.4;
+  max-width: 680px;
+  margin-bottom: 40px;
+  opacity: 0;
+  transition: opacity 2s;
+}
+#final-screen .final-text.visible { opacity: 1; }
+#restart-btn.hidden { display: none; }

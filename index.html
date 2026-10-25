@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ТИШИНА</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+  <div id="crosshair"></div>
+
+  <div id="hud">
+    <div id="o2-hud">
+      <div class="hud-label">O₂</div>
+      <div class="bar"><div id="o2-fill"></div></div>
+    </div>
+    <div id="battery-hud">
+      <div class="hud-label">BAT</div>
+      <div id="battery-segments">
+        <div class="seg"></div><div class="seg"></div>
+        <div class="seg"></div><div class="seg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="interact-prompt"></div>
+  <div id="message-flash"></div>
+
+  <div id="charging-overlay">
+    <div class="crank"></div>
+    <div class="charging-text">ЗАРЯДКА...</div>
+  </div>
+
+  <div id="vignette"></div>
+  <div id="fade-overlay"></div>
+
+  <div id="start-screen" class="overlay">
+    <div class="title">ТИШИНА</div>
+    <div class="subtitle">глубина не отпускает</div>
+    <button id="start-btn">ПОГРУЗИТЬСЯ</button>
+    <div class="controls-hint">
+      WASD — движение · Мышь — взгляд<br>
+      F — фонарик · R — зарядка<br>
+      E — взаимодействие · Shift — бег
+    </div>
+  </div>
+
+  <div id="death-screen" class="overlay hidden">
+    <div class="death-text">ТЫ ЗАХЛЕБНУЛСЯ</div>
+    <button id="respawn-btn">ПРОДОЛЖИТЬ</button>
+  </div>
+
+  <div id="terminal-overlay" class="hidden">
+    <div class="crt">
+      <div class="crt-header">
+        <span>СИСТЕМА УПРАВЛЕНИЯ ШЛЮЗАМИ // ТЕРМИНАЛ 04</span>
+      </div>
+      <div id="terminal-body">
+        <pre id="terminal-text"></pre>
+      </div>
+      <div id="sluice-prompt" class="hidden">
+        <div class="sluice-line">&gt; АВАРИЙНЫЙ ПРОТОКОЛ: РАЗГЕРМЕТИЗАЦИЯ НИЖНЕГО ШЛЮЗА</div>
+        <div class="sluice-choice">
+          <span class="sluice-key">[Y]</span> ПОДТВЕРДИТЬ &nbsp;&nbsp;
+          <span class="sluice-key">[N]</span> ОТМЕНА
+        </div>
+      </div>
+      <div class="crt-footer"><div class="crt-scanlines"></div></div>
+    </div>
+  </div>
+
+  <div id="final-screen" class="overlay hidden">
+    <div class="final-text"></div>
+    <button id="restart-btn" class="hidden">НАЧАТЬ ЗАНОВО</button>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
