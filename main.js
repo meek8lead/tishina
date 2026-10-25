@@ -22,6 +22,7 @@ const state = {
   inVoid: false,
   finalTextShown: false,
   roared: false,
+  impacted: false,
 };
 
 const keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -30,12 +31,11 @@ const waterZones = [
   { minX: -5, maxX: 5, minZ: 7, maxZ: 17, level: 1.5, active: true },
   { minX: -4, maxX: 4, minZ: 20, maxZ: 28, level: -2, active: false },
   { minX: -1.1, maxX: 1.1, minZ: 28, maxZ: 32, level: -2, active: false },
-  { minX: -100, maxX: 100, minZ: 32, maxZ: 120, level: 12, active: true, noSurface: true },
+  { minX: -200, maxX: 200, minZ: 32, maxZ: 250, level: 12, active: true, noSurface: true },
 ];
 
 let currentWaterLevel = -Infinity;
 
-// ─── DOM ───
 const dom = {
   o2Fill: document.getElementById('o2-fill'),
   vignette: document.getElementById('vignette'),
@@ -144,7 +144,6 @@ function wallZ(xw, cz, d, h, cy, door) {
   if (y2 < yMax) addBox(xw, (y2 + yMax) / 2, (z1 + z2) / 2, 0.15, yMax - y2, z2 - z1, wallMat);
 }
 
-// ─── Materials ───
 function makeMetalTexture(size = 512) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -197,7 +196,6 @@ const doorMat = makeMetalMaterial(2, 2, 0x5a4a3a);
 // ════════════════════════════════════════════════════════════
 //   LEVEL GEOMETRY
 // ════════════════════════════════════════════════════════════
-// Start
 addFloor(0, 0, 0, 6, 6);
 addCeiling(0, 3, 0, 6, 6);
 wallX(-3, 0, 6, 3, 0, null);
@@ -205,13 +203,11 @@ wallX(3, 0, 6, 3, 0, { x1: -1, x2: 1, y1: 0, y2: 2.2 });
 wallZ(-3, 0, 6, 3, 0, null);
 wallZ(3, 0, 6, 3, 0, null);
 
-// Corridor
 addFloor(0, 0, 5, 2, 4);
 addCeiling(0, 3, 5, 2, 4);
 wallZ(-1, 5, 4, 3, 0, null);
 wallZ(1, 5, 4, 3, 0, null);
 
-// Flooded
 addFloor(0, -2, 12, 10, 10);
 addCeiling(0, 3, 12, 10, 10);
 wallX(7, 0, 10, 5, -2, { x1: -1, x2: 1, y1: 0, y2: 2.2 });
@@ -219,13 +215,11 @@ wallX(17, 0, 10, 5, -2, { x1: -1.5, x2: 1.5, y1: 0, y2: 2.5 });
 wallZ(-5, 12, 10, 5, -2, null);
 wallZ(5, 12, 10, 5, -2, null);
 
-// Tunnel
 addFloor(0, 0, 18.5, 3, 3);
 addCeiling(0, 2.5, 18.5, 3, 3);
 wallZ(-1.5, 18.5, 3, 2.5, 0, null);
 wallZ(1.5, 18.5, 3, 2.5, 0, null);
 
-// Pump room
 addFloor(0, 0, 24, 8, 8);
 addCeiling(0, 3, 24, 8, 8);
 wallX(20, 0, 8, 3, 0, { x1: -1.5, x2: 1.5, y1: 0, y2: 2.5 });
@@ -233,26 +227,21 @@ wallX(28, 0, 8, 3, 0, { x1: -1, x2: 1, y1: 0, y2: 2.5 });
 wallZ(-4, 24, 8, 3, 0, null);
 wallZ(4, 24, 8, 3, 0, null);
 
-// Airlock
 addFloor(0, 0, 30, 2, 4);
 addCeiling(0, 3, 30, 2, 4);
 wallZ(-1, 30, 4, 3, 0, null);
 wallZ(1, 30, 4, 3, 0, null);
 
-// Outer door
 const outerDoorMesh = addBox(0, 1.25, 32, 2, 2.5, 0.15, doorMat, true);
 const outerDoorCollider = colliders[colliders.length - 1];
 
-// Sluice inner back door (hidden initially)
 const sluiceBackDoor = new THREE.Mesh(new THREE.BoxGeometry(3, 2.5, 0.2), doorMat);
 sluiceBackDoor.position.set(0, 1.25, 20);
 sluiceBackDoor.visible = false;
 scene.add(sluiceBackDoor);
 let backDoorCollider = null;
 
-// ════════════════════════════════════════════════════════════
-//   PROPS
-// ════════════════════════════════════════════════════════════
+// ─── Props ───
 function makePipe(x1, y1, z1, x2, y2, z2, r = 0.07) {
   const a = new THREE.Vector3(x1, y1, z1), b = new THREE.Vector3(x2, y2, z2);
   const dir = b.clone().sub(a);
@@ -287,9 +276,7 @@ addBox(-3, -1.65, 14, 0.7, 0.7, 0.7, crateMat, true, true);
 addBox(2.5, 0.45, 26, 0.9, 0.9, 0.9, crateMat, true, true);
 addBox(2.5, 1.05, 26, 0.6, 0.3, 0.6, crateMat, true, true);
 
-// ════════════════════════════════════════════════════════════
-//   WATER SURFACES
-// ════════════════════════════════════════════════════════════
+// ─── Water surfaces ───
 const waterMat = new THREE.ShaderMaterial({
   uniforms: {
     uTime: { value: 0 },
@@ -335,29 +322,23 @@ for (const z of waterZones) {
   waterSurfaces.push({ zone: z, mesh });
 }
 
-// ════════════════════════════════════════════════════════════
-//   LIGHTS
-// ════════════════════════════════════════════════════════════
+// ─── Lights ───
 scene.add(new THREE.AmbientLight(0x0a1018, 0.5));
-
 const emergencyLight = new THREE.PointLight(0xff2200, 0.9, 8, 1.6);
 emergencyLight.position.set(4.2, 2.7, 5.2);
 scene.add(emergencyLight);
-
 const emergencyLight2 = new THREE.PointLight(0xff3300, 0.5, 8, 1.8);
 emergencyLight2.position.set(-3.5, 2.5, 24);
 scene.add(emergencyLight2);
-
 const underwaterLight = new THREE.PointLight(0x2a1010, 0.6, 10, 2);
 underwaterLight.position.set(0, -1.5, 12);
 scene.add(underwaterLight);
-
 const terminalGlow = new THREE.PointLight(0x33ff55, 0.55, 3.5, 1.8);
 terminalGlow.position.set(-3.5, 1.6, 26.5);
 scene.add(terminalGlow);
 
 // ════════════════════════════════════════════════════════════
-//   DUST PARTICLES (near flashlight)
+//   DUST PARTICLES
 // ════════════════════════════════════════════════════════════
 const DUST_COUNT = 260;
 const dustGeo = new THREE.BufferGeometry();
@@ -390,13 +371,11 @@ const dustMat = new THREE.ShaderMaterial({
       p.x += sin(t * 0.15 + seed * 6.28) * 0.7;
       p.y += cos(t * 0.11 + seed * 3.14) * 0.5 + mod(t * 0.03, 4.0) * 0.08;
       p.z += sin(t * 0.12 + seed * 2.0) * 0.7;
-
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
       gl_Position = projectionMatrix * mv;
       float dist = length(mv.xyz);
       gl_PointSize = uSize * (260.0 / max(dist, 0.01));
-      float facing = smoothstep(10.0, 0.3, dist);
-      vAlpha = facing * (0.35 + 0.65 * abs(sin(t * 1.4 + seed * 9.1)));
+      vAlpha = smoothstep(10.0, 0.3, dist) * (0.35 + 0.65 * abs(sin(t * 1.4 + seed * 9.1)));
     }
   `,
   fragmentShader: `
@@ -405,9 +384,8 @@ const dustMat = new THREE.ShaderMaterial({
     varying float vAlpha;
     void main() {
       vec2 uv = gl_PointCoord - 0.5;
-      float d = length(uv);
-      if (d > 0.5) discard;
-      float a = smoothstep(0.5, 0.0, d) * vAlpha * uOpacity;
+      if (length(uv) > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, length(uv)) * vAlpha * uOpacity;
       gl_FragColor = vec4(uColor, a);
     }
   `,
@@ -431,14 +409,6 @@ function addInteractable(mesh, onInteract, prompt) {
   const obj = { mesh, onInteract, prompt };
   interactables.push(obj);
   return obj;
-}
-function removeInteractable(mesh) {
-  const idx = interactables.findIndex(i => i.mesh === mesh);
-  if (idx >= 0) interactables.splice(idx, 1);
-  if (currentInteractable && currentInteractable.mesh === mesh) {
-    currentInteractable = null;
-    dom.interactPrompt.classList.remove('visible');
-  }
 }
 
 const tankSpecs = [
@@ -507,9 +477,7 @@ terminalProxy.position.set(-3.6, 1.6, 26.5);
 scene.add(terminalProxy);
 addInteractable(terminalProxy, () => openTerminal(), '[E] Использовать терминал');
 
-// ════════════════════════════════════════════════════════════
-//   SCARE PIPE
-// ════════════════════════════════════════════════════════════
+// ─── Scare pipe ───
 let scarePipe = null, scarePipeActive = false, scarePipeTime = 0;
 {
   scarePipe = new THREE.Mesh(
@@ -536,89 +504,224 @@ function triggerScare() {
 }
 
 // ════════════════════════════════════════════════════════════
-//   THE FACE (finale)
+//   THE FACE — redesigned
 // ════════════════════════════════════════════════════════════
+const FACE_Z = 90;
+const FACE_Y = 4;
 const faceGroup = new THREE.Group();
-faceGroup.position.set(0, 4, 55);
-faceGroup.visible = false;
+faceGroup.position.set(0, FACE_Y, FACE_Z);
 scene.add(faceGroup);
-const faceOriginalZ = 55;
-const faceLookAt = new THREE.Vector3(0, 4, 55);
+const faceOriginalZ = FACE_Z;
+
+// Head with Fresnel rim-glow shader (silhouette visible through fog)
+const headMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uColor: { value: new THREE.Color(0x0a0a14) },
+    uRimColor: { value: new THREE.Color(0x4488cc) },
+    uRimPower: { value: 2.5 },
+    uGlowIntensity: { value: 0.55 },
+    uFogColor: { value: new THREE.Color(0x00121a) },
+    uFogDensity: { value: 0.016 },
+  },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewPos;
+    varying float vDist;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewPos = -mv.xyz;
+      vDist = length(mv.xyz);
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform vec3 uRimColor;
+    uniform float uRimPower;
+    uniform float uGlowIntensity;
+    uniform vec3 uFogColor;
+    uniform float uFogDensity;
+    varying vec3 vNormal;
+    varying vec3 vViewPos;
+    varying float vDist;
+    void main() {
+      vec3 viewDir = normalize(vViewPos);
+      float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), uRimPower);
+      vec3 col = uColor + uRimColor * fresnel * uGlowIntensity;
+      float fogFactor = 1.0 - exp(-pow(vDist * uFogDensity, 2.0));
+      col = mix(col, uFogColor, fogFactor);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+});
 
 {
-  const headGeo = new THREE.IcosahedronGeometry(18, 5);
+  // Head geometry — noisy icosahedron radius 15
+  const headGeo = new THREE.IcosahedronGeometry(15, 5);
   const pos = headGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const v = new THREE.Vector3().fromBufferAttribute(pos, i);
     const n = v.clone().normalize();
     const noise =
-      Math.sin(v.x * 0.3) * Math.cos(v.y * 0.4) * Math.sin(v.z * 0.35) * 2.8 +
-      Math.sin(v.x * 1.1 + v.z * 0.7) * 0.6 +
-      (Math.random() - 0.5) * 0.7;
+      Math.sin(v.x * 0.3) * Math.cos(v.y * 0.4) * Math.sin(v.z * 0.35) * 2.4 +
+      Math.sin(v.x * 1.1 + v.z * 0.7) * 0.5 +
+      (Math.random() - 0.5) * 0.6;
     v.addScaledVector(n, noise);
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   headGeo.computeVertexNormals();
-  const headMat = new THREE.MeshStandardMaterial({
-    color: 0x0e0e12, roughness: 0.98, metalness: 0.0, fog: true,
-  });
   faceGroup.add(new THREE.Mesh(headGeo, headMat));
-
-  const mouth = new THREE.Mesh(
-    new THREE.SphereGeometry(7, 20, 16),
-    new THREE.MeshBasicMaterial({ color: 0x000000, fog: false }),
-  );
-  mouth.position.set(0, -3, -13);
-  mouth.scale.set(1.0, 1.6, 0.55);
-  faceGroup.add(mouth);
-
-  for (let i = 0; i < 24; i++) {
-    const angle = (i / 24) * Math.PI * 2;
-    const r = 5.5;
-    const y = -3 + Math.sin(angle) * r * 1.4;
-    const x = Math.cos(angle) * r * 0.9;
-    const z = -13 + 2.4;
-    const tooth = new THREE.Mesh(
-      new THREE.ConeGeometry(0.35, 1.5, 5),
-      new THREE.MeshStandardMaterial({ color: 0x504840, roughness: 0.7, metalness: 0.1 }),
-    );
-    tooth.position.set(x, y, z);
-    tooth.lookAt(x, y, z + 5);
-    faceGroup.add(tooth);
-  }
-
-  const eyeTex = makeEyeTexture();
-  const eyeMat = new THREE.SpriteMaterial({
-    map: eyeTex, color: 0xffeedd, fog: false, transparent: true,
-    depthWrite: false, blending: THREE.AdditiveBlending,
-  });
-  const eye1 = new THREE.Sprite(eyeMat);
-  eye1.position.set(-5.5, 4, -15);
-  eye1.scale.set(5, 5, 1);
-  faceGroup.add(eye1);
-  const eye2 = new THREE.Sprite(eyeMat.clone());
-  eye2.position.set(5.5, 4, -15);
-  eye2.scale.set(5, 5, 1);
-  faceGroup.add(eye2);
-
-  const rimLight = new THREE.PointLight(0x4a1a1a, 0.4, 40, 1.5);
-  rimLight.position.set(0, 5, -10);
-  faceGroup.add(rimLight);
 }
 
+// Mouth — dark red, clearly IN FRONT of head surface (head front z ≈ -15)
+const mouthMat = new THREE.MeshStandardMaterial({
+  color: 0x1a0006,
+  roughness: 0.7,
+  metalness: 0.1,
+  emissive: 0x550010,
+  emissiveIntensity: 0.8,
+  fog: true,
+});
+const mouth = new THREE.Mesh(new THREE.SphereGeometry(5.5, 24, 18), mouthMat);
+mouth.position.set(0, -2.5, -19);
+mouth.scale.set(1.2, 1.6, 0.65);
+faceGroup.add(mouth);
+
+// Glow inside mouth
+const mouthLight = new THREE.PointLight(0xff2200, 0.9, 25, 2);
+mouthLight.position.set(0, -2.5, -18);
+faceGroup.add(mouthLight);
+
+// Teeth — ring around mouth front edge (z ≈ -17, in front of head surface at -15)
+for (let i = 0; i < 28; i++) {
+  const angle = (i / 28) * Math.PI * 2;
+  const rx = 5.6;
+  const ry = 6.2;
+  const x = Math.cos(angle) * rx;
+  const y = -2.5 + Math.sin(angle) * ry;
+  const z = -17;
+  const tooth = new THREE.Mesh(
+    new THREE.ConeGeometry(0.35, 1.9, 4),
+    new THREE.MeshStandardMaterial({
+      color: 0x3a2f28, roughness: 0.85, metalness: 0.05,
+      emissive: 0x1a0808, emissiveIntensity: 0.4,
+    }),
+  );
+  tooth.position.set(x, y, z);
+  tooth.lookAt(x * 1.5, y, z - 5);
+  faceGroup.add(tooth);
+}
+
+// Eyes — bright orbs clearly IN FRONT of head surface (z ≈ -17)
 function makeEyeTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  g.addColorStop(0, 'rgba(255, 245, 210, 1)');
-  g.addColorStop(0.25, 'rgba(255, 220, 120, 1)');
-  g.addColorStop(0.6, 'rgba(255, 120, 30, 0.55)');
-  g.addColorStop(1, 'rgba(255, 40, 0, 0)');
+  g.addColorStop(0.0, 'rgba(255, 255, 245, 1)');
+  g.addColorStop(0.15, 'rgba(255, 240, 200, 1)');
+  g.addColorStop(0.35, 'rgba(255, 190, 90, 0.9)');
+  g.addColorStop(0.6, 'rgba(220, 90, 30, 0.45)');
+  g.addColorStop(1.0, 'rgba(60, 0, 0, 0)');
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
+  ctx.beginPath();
+  ctx.arc(64, 64, 64, 0, Math.PI * 2);
+  ctx.fill();
   return new THREE.CanvasTexture(c);
 }
+
+const eyeTex = makeEyeTexture();
+const eyeMatProto = new THREE.SpriteMaterial({
+  map: eyeTex,
+  color: 0xffffff,
+  fog: false,
+  transparent: true,
+  depthWrite: false,
+  depthTest: false,
+  blending: THREE.AdditiveBlending,
+  opacity: 0.85,
+});
+const eye1 = new THREE.Sprite(eyeMatProto.clone());
+eye1.position.set(-5, 3.5, -17.5);
+eye1.scale.set(3.2, 3.2, 1);
+faceGroup.add(eye1);
+
+const eye2 = new THREE.Sprite(eyeMatProto.clone());
+eye2.position.set(5, 3.5, -17.5);
+eye2.scale.set(3.2, 3.2, 1);
+faceGroup.add(eye2);
+
+// Front key light — warm, illuminates the face from player's side
+const faceKeyLight = new THREE.PointLight(0x99aacc, 1.8, 70, 1.5);
+faceKeyLight.position.set(0, 4, -30);
+faceGroup.add(faceKeyLight);
+
+// Back rim light — dark purple, silhouettes the head from behind
+const faceRimLight = new THREE.PointLight(0x3344aa, 2.5, 60, 1.6);
+faceRimLight.position.set(0, 6, 12);
+faceGroup.add(faceRimLight);
+
+// Bioluminescent particles around the face — atmospheric glow
+const bioGeo = new THREE.BufferGeometry();
+const BIO_COUNT = 200;
+const bioPos = new Float32Array(BIO_COUNT * 3);
+const bioSeed = new Float32Array(BIO_COUNT);
+for (let i = 0; i < BIO_COUNT; i++) {
+  const r = 10 + Math.random() * 20;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  bioPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  bioPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.7;
+  bioPos[i * 3 + 2] = r * Math.cos(phi);
+  bioSeed[i] = Math.random();
+}
+bioGeo.setAttribute('position', new THREE.BufferAttribute(bioPos, 3));
+bioGeo.setAttribute('seed', new THREE.BufferAttribute(bioSeed, 1));
+
+const bioMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0 },
+    uOpacity: { value: 0.35 },
+    uColor: { value: new THREE.Color(0x4488ff) },
+  },
+  vertexShader: `
+    attribute float seed;
+    uniform float uTime;
+    varying float vAlpha;
+    void main() {
+      vec3 p = position;
+      float t = uTime + seed * 100.0;
+      p.x += sin(t * 0.25 + seed * 6.0) * 1.5;
+      p.y += cos(t * 0.2 + seed * 3.0) * 1.2;
+      p.z += sin(t * 0.3 + seed * 8.0) * 1.5;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (2.0 + seed * 3.0) * (200.0 / max(length(mv.xyz), 1.0));
+      vAlpha = 0.4 + 0.6 * sin(t * 2.0 + seed * 10.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uOpacity;
+    varying float vAlpha;
+    void main() {
+      vec2 uv = gl_PointCoord - 0.5;
+      if (length(uv) > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, length(uv)) * vAlpha * uOpacity;
+      gl_FragColor = vec4(uColor, a);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+
+const bioParticles = new THREE.Points(bioGeo, bioMat);
+faceGroup.add(bioParticles);
+
+// Store eye light refs so we can brighten during finale
+const eyeLights = [eye1, eye2];
 
 // ════════════════════════════════════════════════════════════
 //   COLLISION
@@ -639,7 +742,6 @@ function resolveCollisions() {
     const overlapX = Math.min(playerAABB.max.x - box.min.x, box.max.x - playerAABB.min.x);
     const overlapY = Math.min(playerAABB.max.y - box.min.y, box.max.y - playerAABB.min.y);
     const overlapZ = Math.min(playerAABB.max.z - box.min.z, box.max.z - playerAABB.min.z);
-
     if (state.isSwimming && (overlapX < overlapY || overlapZ < overlapY)) {
       const playerFeet = player.pos.y - player.eyeHeight;
       const boxTop = box.max.y;
@@ -707,9 +809,7 @@ function tryInteract() {
   if (currentInteractable) currentInteractable.onInteract();
 }
 
-// ════════════════════════════════════════════════════════════
-//   FLASHLIGHT / CHARGING
-// ════════════════════════════════════════════════════════════
+// ─── Flashlight ───
 let flashlightBeforeCharging = false;
 function toggleFlashlight() {
   if (!state.playing || state.dead || state.finished || state.charging || state.finalSequence) return;
@@ -762,14 +862,12 @@ function startAmbient() {
   masterFilter.Q.value = 0.7;
   master.connect(masterFilter);
   masterFilter.connect(audioCtx.destination);
-
   [38, 41.5].forEach((f) => {
     const osc = audioCtx.createOscillator();
     osc.type = 'sine'; osc.frequency.value = f;
     const g = audioCtx.createGain(); g.gain.value = 0.35;
     osc.connect(g); g.connect(master); osc.start();
   });
-
   const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 4, audioCtx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.3;
@@ -1000,7 +1098,7 @@ function scheduleAmbientRandom() {
 }
 
 // ════════════════════════════════════════════════════════════
-//   UPDATE: PLAYER
+//   PLAYER UPDATE
 // ════════════════════════════════════════════════════════════
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const vForward = new THREE.Vector3();
@@ -1079,7 +1177,7 @@ function updatePlayer(dt) {
 function onWaterStateChange(wasSwimming) {
   if (state.isSwimming) {
     scene.fog.color.setHex(0x031a20);
-    scene.fog.density = state.inVoid ? 0.045 : 0.16;
+    scene.fog.density = state.inVoid ? 0.016 : 0.16;
     document.body.classList.add('underwater');
     if (audioCtx) {
       ambientGain.gain.setTargetAtTime(0.08, audioCtx.currentTime, 0.3);
@@ -1099,9 +1197,8 @@ function onWaterStateChange(wasSwimming) {
 }
 
 function onEnterVoid() {
-  scene.fog.color.setHex(0x000305);
-  scene.fog.density = 0.045;
-  faceGroup.visible = true;
+  scene.fog.color.setHex(0x00121a);
+  scene.fog.density = 0.016;
   if (audioCtx) {
     voidHumOsc = audioCtx.createOscillator();
     voidHumOsc.type = 'sine';
@@ -1115,7 +1212,7 @@ function onEnterVoid() {
 }
 
 // ════════════════════════════════════════════════════════════
-//   UPDATE: RESOURCES
+//   RESOURCES UPDATE
 // ════════════════════════════════════════════════════════════
 function updateResources(dt) {
   if (!state.playing || state.dead || state.finished || state.finalSequence) return;
@@ -1139,7 +1236,6 @@ function updateResources(dt) {
   const filled = Math.ceil(state.battery / 25);
   for (let i = 0; i < dom.segs.length; i++) dom.segs[i].classList.toggle('on', i < filled);
 
-  // Heartbeat
   if (state.oxygen < 25 && !state.finalSequence) {
     const now = performance.now() * 0.001;
     const interval = state.oxygen < 10 ? 0.55 : 0.85;
@@ -1195,7 +1291,6 @@ const TERMINAL_TEXT =
 > [КОНЕЦ ЗАПИСИ]`;
 
 let typewriterTimer = null;
-
 function openTerminal() {
   if (state.terminalOpen) return;
   state.terminalOpen = true;
@@ -1237,7 +1332,6 @@ function confirmSluice() {
 //   SLUICE
 // ════════════════════════════════════════════════════════════
 let outerDoorRemoved = false;
-
 function activateSluice() {
   if (state.sluiceState !== 'idle') return;
   state.sluiceState = 'filling';
@@ -1264,7 +1358,6 @@ function activateSluice() {
     setTimeout(() => dom.messageFlash.classList.remove('visible'), 2500);
   }, 2000);
 }
-
 function updateSluice(dt) {
   if (state.sluiceState === 'filling') {
     state.sluiceTimer += dt;
@@ -1288,7 +1381,6 @@ function updateSluice(dt) {
     if (t >= 1) { state.sluiceState = 'open'; stopAlarm(); }
   }
 }
-
 function resetSluice() {
   state.sluiceState = 'idle';
   state.sluiceTimer = 0;
@@ -1317,17 +1409,22 @@ function resetSluice() {
 }
 
 // ════════════════════════════════════════════════════════════
-//   FINALE
+//   FINALE — redesigned
 // ════════════════════════════════════════════════════════════
+const faceLookAt = new THREE.Vector3();
+const finaleTargetPos = new THREE.Vector3();
+const finaleDummy = new THREE.Object3D();
+
 function checkFinaleTrigger() {
   if (state.finalSequence || state.finaleTriggered) return;
   if (!state.inVoid) return;
-  const dist = player.pos.distanceTo(faceLookAt);
-  if (dist < 12) {
+  const dist = player.pos.distanceTo(new THREE.Vector3(0, FACE_Y, faceGroup.position.z));
+  if (dist < 22) {
     state.finaleTriggered = true;
     triggerFinale();
   }
 }
+
 function triggerFinale() {
   state.finalSequence = true;
   state.finaleTime = 0;
@@ -1336,42 +1433,92 @@ function triggerFinale() {
   stopAlarm();
   if (audioCtx) ambientGain.gain.setTargetAtTime(0.02, audioCtx.currentTime, 0.3);
 }
+
 function updateFinale(dt) {
   if (!state.finalSequence || state.finished) return;
   state.finaleTime += dt;
   const t = state.finaleTime;
 
-  if (t > 0.15) camera.lookAt(faceLookAt);
-  if (t > 0.35) flashlight.visible = false;
-  if (t > 0.4 && t < 0.9) {
-    const k = (t - 0.4) / 0.5;
-    faceGroup.children.forEach((c) => { if (c.isSprite) c.scale.setScalar(5 + k * 4); });
+  // Camera smooth look-at (0 → 0.35s), then hard-lock to face
+  finaleTargetPos.copy(faceGroup.position);
+  finaleTargetPos.y += 2;
+  if (t < 0.35) {
+    const k = Math.min(t / 0.35, 1) * 0.6;
+    finaleDummy.position.copy(camera.position);
+    finaleDummy.lookAt(finaleTargetPos);
+    camera.quaternion.slerp(finaleDummy.quaternion, k);
+  } else {
+    finaleDummy.position.copy(camera.position);
+    finaleDummy.lookAt(finaleTargetPos);
+    camera.quaternion.slerp(finaleDummy.quaternion, 0.5);
   }
-  if (t > 0.55 && t < 1.15) {
-    const lungeT = (t - 0.55) / 0.6;
-    const eased = lungeT * lungeT;
-    faceGroup.position.z = faceOriginalZ - eased * 30;
-    faceGroup.position.y = 4 - eased * 1.5;
-    faceGroup.scale.setScalar(1 + eased * 0.4);
+
+  // Face "wakes up" — 0.1 → 0.55s: emissive/lights ramp up
+  if (t > 0.1 && t < 0.55) {
+    const k = Math.min((t - 0.1) / 0.45, 1);
+    headMat.uniforms.uGlowIntensity.value = 0.55 + k * 2.5;
+    headMat.uniforms.uRimPower.value = 2.5 - k * 1.2;
+    headMat.uniforms.uRimColor.value.setRGB(
+      0.27 + k * 0.4, 0.53 - k * 0.2, 0.8 + k * 0.2
+    );
+    eye1.scale.setScalar(3.2 + k * 2.8);
+    eye2.scale.setScalar(3.2 + k * 2.8);
+    eye1.material.opacity = 0.85 + k * 0.15;
+    eye2.material.opacity = 0.85 + k * 0.15;
+    mouthMat.emissiveIntensity = 0.8 + k * 2.2;
+    mouthLight.intensity = 0.9 + k * 3.5;
+    faceKeyLight.intensity = 1.8 + k * 2.5;
+    faceRimLight.intensity = 2.5 + k * 2.0;
+    bioMat.uniforms.uOpacity.value = 0.35 + k * 0.5;
   }
-  if (t > 1.0 && !state.roared) { state.roared = true; playRoar(); }
-  if (t > 1.0 && t < 1.4) {
+
+  // Flashlight dies when face wakes
+  if (t > 0.3) flashlight.visible = false;
+
+  // Lunge — 0.55 → 1.05s
+  if (t > 0.55 && t < 1.05) {
+    const lt = (t - 0.55) / 0.5;
+    const eased = lt * lt * lt; // ease-in: slow, then violent
+    faceGroup.position.z = faceOriginalZ - eased * 45; // moves 45 units toward player
+    faceGroup.position.y = FACE_Y - eased * 1.5;
+    // FOV zoom-in for dramatic effect
+    camera.fov = 72 - eased * 22;
+    camera.updateProjectionMatrix();
+  }
+
+  // Roar at 0.85 (just before impact)
+  if (t > 0.85 && !state.roared) {
+    state.roared = true;
+    playRoar();
+  }
+
+  // Screen shake ramps up during approach
+  if (t > 0.75 && t < 1.05) {
+    fxPass.uniforms.uScreenShake.value = Math.min((t - 0.75) * 4, 1.2);
+  }
+
+  // Impact at 1.05
+  if (t > 1.05 && !state.impacted) {
+    state.impacted = true;
+    fxPass.uniforms.uFlash.value = 1.0;
     fxPass.uniforms.uScreenShake.value = 1.0;
-    fxPass.uniforms.uFlash.value = 0.15 + Math.random() * 0.4;
-  } else if (t >= 1.4) {
-    fxPass.uniforms.uScreenShake.value = Math.max(0, 1 - (t - 1.4) * 3);
-    fxPass.uniforms.uFlash.value = 0;
   }
-  if (t > 1.3) {
-    const fadeT = Math.min((t - 1.3) / 0.6, 1);
-    dom.fadeOverlay.style.opacity = fadeT;
+
+  // Flash decay + fade to black
+  if (t > 1.05) {
+    fxPass.uniforms.uFlash.value = Math.max(0, 1.0 - (t - 1.05) * 4);
+    fxPass.uniforms.uScreenShake.value = Math.max(0, 1.0 - (t - 1.05) * 3);
+    if (t > 1.2) dom.fadeOverlay.style.opacity = 1;
   }
-  if (t > 2.2 && !state.finalTextShown) {
+
+  // Final screen
+  if (t > 2.0 && !state.finalTextShown) {
     state.finalTextShown = true;
     state.finished = true;
     showFinalScreen();
   }
 }
+
 function showFinalScreen() {
   dom.finalText.textContent =
     'Оно не было голодным.\nОно просто хотело, чтобы мы открыли.\n\n\n— КОНЕЦ —';
@@ -1406,21 +1553,40 @@ function respawn() {
   state.finaleTriggered = false;
   state.finaleTime = 0;
   state.roared = false;
+  state.impacted = false;
   state.finalTextShown = false;
+
+  // Reset face
+  faceGroup.position.set(0, FACE_Y, faceOriginalZ);
+  faceGroup.scale.setScalar(1);
+  headMat.uniforms.uGlowIntensity.value = 0.55;
+  headMat.uniforms.uRimPower.value = 2.5;
+  headMat.uniforms.uRimColor.value.setRGB(0.27, 0.53, 0.8);
+  eye1.scale.setScalar(3.2);
+  eye2.scale.setScalar(3.2);
+  eye1.material.opacity = 0.85;
+  eye2.material.opacity = 0.85;
+  mouthMat.emissiveIntensity = 0.8;
+  mouthLight.intensity = 0.9;
+  faceKeyLight.intensity = 1.8;
+  faceRimLight.intensity = 2.5;
+  bioMat.uniforms.uOpacity.value = 0.35;
+  camera.fov = 72;
+  camera.updateProjectionMatrix();
+  fxPass.uniforms.uFlash.value = 0;
+  fxPass.uniforms.uScreenShake.value = 0;
+  dom.fadeOverlay.style.opacity = 0;
 
   if (state.sluiceState === 'open') {
     player.pos.set(0, 3, 33);
   } else {
     player.pos.set(0, 1.6, 2);
     resetSluice();
-    for (const t of allTanks) {
-      t.visible = true;
-      t.userData.collected = false;
-      t.position.y = t.userData.baseY;
+    for (const tk of allTanks) {
+      tk.visible = true;
+      tk.userData.collected = false;
+      tk.position.y = tk.userData.baseY;
     }
-    faceGroup.visible = false;
-    faceGroup.position.set(0, 4, 55);
-    faceGroup.scale.setScalar(1);
     scarePipeActive = false;
     scarePipe.visible = false;
   }
@@ -1483,10 +1649,10 @@ function animate() {
   dustCloud.position.copy(camera.position);
 
   // Tank float
-  for (const t of allTanks) {
-    if (t.visible) {
-      t.rotation.y += 0.6 * dt;
-      t.position.y = t.userData.baseY + Math.sin(now * 0.0015 + t.userData.baseY * 3) * 0.03;
+  for (const tk of allTanks) {
+    if (tk.visible) {
+      tk.rotation.y += 0.6 * dt;
+      tk.position.y = tk.userData.baseY + Math.sin(now * 0.0015 + tk.userData.baseY * 3) * 0.03;
     }
   }
 
@@ -1500,7 +1666,7 @@ function animate() {
   underwaterLight.intensity = 0.5 + Math.sin(now * 0.002) * 0.2;
   terminalGlow.intensity = 0.5 + Math.sin(now * 0.004) * 0.15;
 
-  // Flashlight flicker when low battery
+  // Flashlight flicker
   if (state.flashlightOn && state.battery < 20) {
     if (Math.random() < 0.06) {
       flashlight.visible = false;
@@ -1518,11 +1684,31 @@ function animate() {
     if (scarePipeTime > 0.7) { scarePipe.visible = false; scarePipeActive = false; }
   }
 
-  // Face idle
-  if (!state.finalSequence && faceGroup.visible) {
+  // Face idle motion + proximity-based pre-finale awakening
+  if (!state.finalSequence) {
     const ft = now * 0.001;
-    faceGroup.rotation.y = Math.sin(ft * 0.2) * 0.05;
-    faceGroup.position.y = 4 + Math.sin(ft * 0.3) * 0.3;
+    faceGroup.rotation.y = Math.sin(ft * 0.2) * 0.04;
+    if (!state.inVoid) {
+      faceGroup.position.y = FACE_Y + Math.sin(ft * 0.3) * 0.3;
+    }
+    // Bio particles shimmer
+    bioMat.uniforms.uTime.value = ft;
+    // Eye pulse
+    const pulse = 0.9 + Math.sin(ft * 1.2) * 0.1;
+    eye1.material.opacity = pulse;
+    eye2.material.opacity = pulse;
+
+    // Proximity "noticing": as player approaches, wake up the face gradually
+    if (state.inVoid) {
+      const d = player.pos.distanceTo(new THREE.Vector3(0, FACE_Y, faceGroup.position.z));
+      if (d < 40 && d > 22) {
+        const k = (40 - d) / 18; // 0 at 40, 1 at 22
+        headMat.uniforms.uGlowIntensity.value = 0.55 + k * 0.9;
+        faceKeyLight.intensity = 1.8 + k * 0.8;
+        bioMat.uniforms.uOpacity.value = 0.35 + k * 0.25;
+        mouthMat.emissiveIntensity = 0.8 + k * 0.6;
+      }
+    }
   }
 
   // FX
