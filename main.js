@@ -24,7 +24,6 @@ const state = {
   finalTextShown: false,
   roared: false,
   impacted: false,
-  faceStartPos: new THREE.Vector3(),
 };
 
 const keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -101,7 +100,7 @@ camera.add(flashlight.target);
 camera.add(new THREE.PointLight(0x334a55, 0.35, 3, 1.5));
 
 // ════════════════════════════════════════════════════════════
-//   WORLD BUILDERS
+//   WORLD
 // ════════════════════════════════════════════════════════════
 const colliders = [];
 
@@ -494,278 +493,97 @@ function triggerScare() {
 }
 
 // ════════════════════════════════════════════════════════════
-//   THE FACE — canvas-drawn, sprite-based (billboard, always faces player)
+//   THE FACE — 3D, always looks at player
 // ════════════════════════════════════════════════════════════
+// Local coordinate convention inside faceGroup:
+//   +Z = toward player (front of face)
+//   -Z = away from player (back of head)
+//   +Y = up, +X = right (from player's POV, face's left)
+
 const FACE_Y = 5;
 const FACE_Z = 75;
-const FACE_SCALE = 55;
-
-// ─── Draw the face on a canvas ───
-function createFaceTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 1024;
-  const ctx = c.getContext('2d');
-  const cx = 512, cy = 512;
-  const R = 460;
-
-  ctx.clearRect(0, 0, 1024, 1024);
-
-  // Outer halo (soft blue glow around the whole head — makes silhouette visible far away)
-  const halo = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 1.35);
-  halo.addColorStop(0, 'rgba(40, 80, 140, 0)');
-  halo.addColorStop(0.55, 'rgba(30, 60, 110, 0.35)');
-  halo.addColorStop(1, 'rgba(20, 40, 80, 0)');
-  ctx.fillStyle = halo;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 1.35, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Skin base — irregular blob, not a perfect circle
-  const skinPath = new Path2D();
-  const points = 64;
-  for (let i = 0; i < points; i++) {
-    const a = (i / points) * Math.PI * 2;
-    const wobble = 1 + Math.sin(a * 3.1) * 0.03 + Math.cos(a * 5.7) * 0.025 + Math.sin(a * 11.3) * 0.015;
-    const r = R * wobble;
-    const x = cx + Math.cos(a) * r;
-    const y = cy + Math.sin(a) * r * 1.12;
-    if (i === 0) skinPath.moveTo(x, y);
-    else skinPath.lineTo(x, y);
-  }
-  skinPath.closePath();
-
-  // Fill skin
-  const skinGrad = ctx.createRadialGradient(cx, cy - R * 0.2, R * 0.1, cx, cy, R);
-  skinGrad.addColorStop(0, '#232330');
-  skinGrad.addColorStop(0.55, '#12121c');
-  skinGrad.addColorStop(1, '#06060c');
-  ctx.fillStyle = skinGrad;
-  ctx.fill(skinPath);
-
-  // Skin mottling inside the skin path
-  ctx.save();
-  ctx.clip(skinPath);
-  ctx.globalAlpha = 0.55;
-  for (let i = 0; i < 260; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const d = Math.random() * R * 0.95;
-    const x = cx + Math.cos(a) * d;
-    const y = cy + Math.sin(a) * d * 1.1;
-    const r = 15 + Math.random() * 90;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    const dark = Math.random() < 0.7;
-    g.addColorStop(0, dark ? '#000005' : '#3a3a48');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  // Cracks / wrinkles
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 30; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r1 = R * 0.2 + Math.random() * R * 0.5;
-    const r2 = r1 + Math.random() * R * 0.3;
-    const x1 = cx + Math.cos(a) * r1;
-    const y1 = cy + Math.sin(a) * r1 * 1.1;
-    const x2 = cx + Math.cos(a + 0.1) * r2;
-    const y2 = cy + Math.sin(a + 0.1) * r2 * 1.1;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // ─── EYE SOCKETS ───
-  const eyeY = cy - R * 0.24;
-  const eyeDX = R * 0.36;
-  const socketW = R * 0.15;
-  const socketH = R * 0.18;
-
-  // Dark recessed sockets
-  [cx - eyeDX, cx + eyeDX].forEach((ex) => {
-    const g = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, socketW * 1.5);
-    g.addColorStop(0, '#000000');
-    g.addColorStop(0.6, '#000000');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(ex, eyeY, socketW * 1.6, socketH * 1.6, 0, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // ─── EYES (glowing) ───
-  [cx - eyeDX, cx + eyeDX].forEach((ex) => {
-    // Outer halo
-    const halo = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, socketW * 2.2);
-    halo.addColorStop(0, 'rgba(255, 255, 210, 1)');
-    halo.addColorStop(0.18, 'rgba(255, 240, 160, 1)');
-    halo.addColorStop(0.45, 'rgba(255, 160, 50, 0.75)');
-    halo.addColorStop(0.75, 'rgba(180, 50, 10, 0.3)');
-    halo.addColorStop(1, 'rgba(60, 10, 0, 0)');
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(ex, eyeY, socketW * 2.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Inner bright eye
-    const inner = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, socketW);
-    inner.addColorStop(0, '#ffffff');
-    inner.addColorStop(0.4, '#fff4c0');
-    inner.addColorStop(1, '#ffaa33');
-    ctx.fillStyle = inner;
-    ctx.beginPath();
-    ctx.ellipse(ex, eyeY, socketW, socketH, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Vertical slit pupil
-    ctx.fillStyle = '#000000';
-    ctx.beginPath();
-    ctx.ellipse(ex, eyeY, socketW * 0.18, socketH * 0.85, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Tiny bright reflection
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.beginPath();
-    ctx.arc(ex - socketW * 0.3, eyeY - socketH * 0.35, socketW * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // ─── MOUTH — huge gaping maw ───
-  const mouthY = cy + R * 0.35;
-  const mouthW = R * 0.78;
-  const mouthH = R * 0.55;
-
-  // Deep red interior
-  const mouthGrad = ctx.createRadialGradient(cx, mouthY, 0, cx, mouthY, mouthW);
-  mouthGrad.addColorStop(0, '#0a0000');
-  mouthGrad.addColorStop(0.45, '#2a0000');
-  mouthGrad.addColorStop(0.85, '#0d0000');
-  mouthGrad.addColorStop(1, '#000000');
-  ctx.fillStyle = mouthGrad;
-  ctx.beginPath();
-  ctx.ellipse(cx, mouthY, mouthW, mouthH, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Inner throat glow — deep, ominous red
-  const throat = ctx.createRadialGradient(cx, mouthY + mouthH * 0.2, 0, cx, mouthY, mouthW * 0.65);
-  throat.addColorStop(0, 'rgba(200, 30, 0, 0.85)');
-  throat.addColorStop(0.35, 'rgba(120, 15, 0, 0.55)');
-  throat.addColorStop(0.7, 'rgba(40, 5, 0, 0.2)');
-  throat.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = throat;
-  ctx.beginPath();
-  ctx.ellipse(cx, mouthY, mouthW * 0.75, mouthH * 0.75, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Teeth — huge fangs around mouth rim
-  const teethCount = 26;
-  for (let i = 0; i < teethCount; i++) {
-    const angle = (i / teethCount) * Math.PI * 2 + 0.1;
-    const tx = cx + Math.cos(angle) * mouthW * 0.94;
-    const ty = mouthY + Math.sin(angle) * mouthH * 0.94;
-    const innerTx = cx + Math.cos(angle) * mouthW * 0.55;
-    const innerTy = mouthY + Math.sin(angle) * mouthH * 0.55;
-
-    // Base width perpendicular to angle
-    const perpA = angle + Math.PI / 2;
-    const bw = mouthW * 0.075;
-    const bx1 = tx + Math.cos(perpA) * bw;
-    const by1 = ty + Math.sin(perpA) * bw;
-    const bx2 = tx - Math.cos(perpA) * bw;
-    const by2 = ty - Math.sin(perpA) * bw;
-
-    // Shadow under tooth
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.beginPath();
-    ctx.moveTo(bx1 + 4, by1 + 4);
-    ctx.lineTo(bx2 + 4, by2 + 4);
-    ctx.lineTo(innerTx + 4, innerTy + 4);
-    ctx.closePath();
-    ctx.fill();
-
-    // Tooth body — gradient from dark base to lighter tip
-    const tg = ctx.createLinearGradient(tx, ty, innerTx, innerTy);
-    tg.addColorStop(0, '#3a2a20');
-    tg.addColorStop(0.5, '#6a5a48');
-    tg.addColorStop(1, '#a89880');
-    ctx.fillStyle = tg;
-    ctx.beginPath();
-    ctx.moveTo(bx1, by1);
-    ctx.lineTo(bx2, by2);
-    ctx.lineTo(innerTx, innerTy);
-    ctx.closePath();
-    ctx.fill();
-
-    // Tooth highlight
-    ctx.strokeStyle = 'rgba(200, 180, 150, 0.4)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo((bx1 + innerTx) / 2, (by1 + innerTy) / 2);
-    ctx.lineTo(innerTx, innerTy);
-    ctx.stroke();
-  }
-
-  // ─── MOUTH EDGE LIPS (dark red rim) ───
-  ctx.strokeStyle = 'rgba(60, 10, 5, 0.9)';
-  ctx.lineWidth = 14;
-  ctx.beginPath();
-  ctx.ellipse(cx, mouthY, mouthW * 1.02, mouthH * 1.02, 0, 0, Math.PI * 2);
-  ctx.stroke();
-
-  return new THREE.CanvasTexture(c);
-}
-
-const faceTexture = createFaceTexture();
-
-const faceMat = new THREE.SpriteMaterial({
-  map: faceTexture,
-  transparent: true,
-  opacity: 0,
-  depthWrite: false,
-  depthTest: false,
-  fog: false,
-});
 
 const faceGroup = new THREE.Group();
 faceGroup.position.set(0, FACE_Y, FACE_Z);
 scene.add(faceGroup);
 const faceOriginalPos = new THREE.Vector3(0, FACE_Y, FACE_Z);
 
-const faceSprite = new THREE.Sprite(faceMat);
-faceSprite.scale.set(FACE_SCALE, FACE_SCALE, 1);
-faceGroup.add(faceSprite);
+// ─── Head (distorted icosphere) ───
+const headGeo = new THREE.IcosahedronGeometry(15, 6);
+{
+  const p = headGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const v = new THREE.Vector3().fromBufferAttribute(p, i);
+    const n = v.clone().normalize();
+    const noise =
+      Math.sin(v.x * 0.35) * Math.cos(v.y * 0.42) * Math.sin(v.z * 0.38) * 2.6 +
+      Math.sin(v.x * 0.95 + v.z * 0.55) * 1.1 +
+      (Math.random() - 0.5) * 1.0;
+    v.addScaledVector(n, noise);
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  headGeo.computeVertexNormals();
+}
+const headMat = new THREE.MeshStandardMaterial({
+  color: 0x1a1218,
+  roughness: 0.92,
+  metalness: 0.08,
+  emissive: 0x040008,
+  emissiveIntensity: 0.35,
+  fog: true,
+});
+const head = new THREE.Mesh(headGeo, headMat);
+faceGroup.add(head);
 
-// ─── Extra eye glow sprites (additive) — brighten on void entry ───
+// ─── EYE SOCKETS — BackSide spheres (creates real "pit" illusion) ───
+const socketMat = new THREE.MeshBasicMaterial({
+  color: 0x000000,
+  side: THREE.BackSide,
+  fog: false,
+});
+const socketGeo = new THREE.SphereGeometry(2.8, 20, 16);
+
+const socketL = new THREE.Mesh(socketGeo, socketMat);
+socketL.position.set(-5.5, 5, 13);
+socketL.scale.set(1.0, 1.15, 1.0);
+faceGroup.add(socketL);
+
+const socketR = new THREE.Mesh(socketGeo, socketMat);
+socketR.position.set(5.5, 5, 13);
+socketR.scale.set(1.0, 1.15, 1.0);
+faceGroup.add(socketR);
+
+// ─── EYES — bright glowing spheres inside the sockets ───
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff0b8, fog: false });
+const eyeGeo = new THREE.SphereGeometry(1.2, 16, 12);
+
+const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+eyeL.position.set(-5.5, 5, 14.6);
+faceGroup.add(eyeL);
+
+const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+eyeR.position.set(5.5, 5, 14.6);
+faceGroup.add(eyeR);
+
+// Eye glow sprites (additive halos)
 function makeEyeGlowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0, 'rgba(255, 255, 220, 1)');
-  g.addColorStop(0.15, 'rgba(255, 230, 140, 1)');
-  g.addColorStop(0.35, 'rgba(255, 160, 50, 0.85)');
-  g.addColorStop(0.6, 'rgba(200, 60, 10, 0.35)');
-  g.addColorStop(1, 'rgba(60, 10, 0, 0)');
+  g.addColorStop(0.0, 'rgba(255, 255, 230, 1)');
+  g.addColorStop(0.15, 'rgba(255, 235, 150, 1)');
+  g.addColorStop(0.4, 'rgba(255, 170, 60, 0.75)');
+  g.addColorStop(0.7, 'rgba(200, 70, 15, 0.25)');
+  g.addColorStop(1.0, 'rgba(60, 10, 0, 0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
   return new THREE.CanvasTexture(c);
 }
-const eyeGlowTexture = makeEyeGlowTexture();
+const eyeGlowTex = makeEyeGlowTexture();
 
-// Eye positions relative to sprite center (in world units, sprite scale 55 so half = 27.5)
-// In canvas: eyeY = cy - R*0.24 => 512 - 110 = 402, => sprite local y = (512-402)/512 * 27.5 = 5.9
-// eyeDX = R*0.36 => 165, => sprite local x = 165/512 * 27.5 = 8.87
-const eyeLocalY = 5.9;
-const eyeLocalX = 8.87;
-
-const eyeGlowMat1 = new THREE.SpriteMaterial({
-  map: eyeGlowTexture,
+const eyeGlowMatL = new THREE.SpriteMaterial({
+  map: eyeGlowTex,
   transparent: true,
   opacity: 0,
   blending: THREE.AdditiveBlending,
@@ -773,44 +591,176 @@ const eyeGlowMat1 = new THREE.SpriteMaterial({
   depthTest: false,
   fog: false,
 });
-const eyeGlowMat2 = eyeGlowMat1.clone();
+const eyeGlowL = new THREE.Sprite(eyeGlowMatL);
+eyeGlowL.position.set(-5.5, 5, 15.2);
+eyeGlowL.scale.set(8, 8, 1);
+faceGroup.add(eyeGlowL);
 
-const eyeGlowSprite1 = new THREE.Sprite(eyeGlowMat1);
-eyeGlowSprite1.position.set(-eyeLocalX, eyeLocalY, 0.1);
-eyeGlowSprite1.scale.set(11, 11, 1);
-faceGroup.add(eyeGlowSprite1);
+const eyeGlowMatR = eyeGlowMatL.clone();
+const eyeGlowR = new THREE.Sprite(eyeGlowMatR);
+eyeGlowR.position.set(5.5, 5, 15.2);
+eyeGlowR.scale.set(8, 8, 1);
+faceGroup.add(eyeGlowR);
 
-const eyeGlowSprite2 = new THREE.Sprite(eyeGlowMat2);
-eyeGlowSprite2.position.set(eyeLocalX, eyeLocalY, 0.1);
-eyeGlowSprite2.scale.set(11, 11, 1);
-faceGroup.add(eyeGlowSprite2);
+// Eye point lights — small warm illumination around face
+const eyeLightL = new THREE.PointLight(0xffaa55, 3, 16, 1.4);
+eyeLightL.position.set(-5.5, 5, 16);
+faceGroup.add(eyeLightL);
 
-// ─── Back-glow sprite behind the head — makes silhouette stand out in fog ───
-function makeBackGlowTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0, 'rgba(40, 80, 140, 0.6)');
-  g.addColorStop(0.5, 'rgba(20, 40, 90, 0.25)');
-  g.addColorStop(1, 'rgba(0, 10, 30, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 256, 256);
-  return new THREE.CanvasTexture(c);
-}
-const backGlowMat = new THREE.SpriteMaterial({
-  map: makeBackGlowTexture(),
-  transparent: true,
-  opacity: 0,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-  depthTest: false,
+const eyeLightR = new THREE.PointLight(0xffaa55, 3, 16, 1.4);
+eyeLightR.position.set(5.5, 5, 16);
+faceGroup.add(eyeLightR);
+
+// ─── MOUTH — BackSide sphere intersecting head = real "hole" effect ───
+// The front surface is culled, so from outside you look THROUGH it,
+// seeing the black inner surface behind — a genuine void.
+const mouthMat = new THREE.MeshBasicMaterial({
+  color: 0x000000,
+  side: THREE.BackSide,
   fog: false,
 });
-const backGlowSprite = new THREE.Sprite(backGlowMat);
-backGlowSprite.position.set(0, 0, -0.5);
-backGlowSprite.scale.set(FACE_SCALE * 1.5, FACE_SCALE * 1.5, 1);
-faceGroup.add(backGlowSprite);
+const mouthGeo = new THREE.SphereGeometry(5, 24, 20);
+const mouth = new THREE.Mesh(mouthGeo, mouthMat);
+mouth.position.set(0, -3, 12);
+mouth.scale.set(1.6, 1.35, 1.0);
+faceGroup.add(mouth);
+
+// Throat glow — deep red sphere inside mouth cavity
+const throatMat = new THREE.MeshBasicMaterial({ color: 0x5a0808, fog: false });
+const throatGeo = new THREE.SphereGeometry(2.2, 16, 12);
+const throat = new THREE.Mesh(throatGeo, throatMat);
+throat.position.set(0, -3, 8.5);
+faceGroup.add(throat);
+
+const throatLight = new THREE.PointLight(0xcc1800, 4, 14, 1.6);
+throatLight.position.set(0, -3, 10);
+faceGroup.add(throatLight);
+
+// ─── LIP RING — dark red torus at mouth rim ───
+const lipMat = new THREE.MeshStandardMaterial({
+  color: 0x3a0808,
+  roughness: 0.85,
+  metalness: 0.1,
+  emissive: 0x110000,
+  emissiveIntensity: 0.5,
+  fog: true,
+});
+const lipRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.35, 8, 36), lipMat);
+lipRing.position.set(0, -3, 14.4);
+lipRing.scale.set(7.2, 5.8, 1);
+faceGroup.add(lipRing);
+
+// ─── TEETH — cones arranged around mouth rim, pointing inward ───
+const toothMat = new THREE.MeshStandardMaterial({
+  color: 0x332820,
+  roughness: 0.6,
+  metalness: 0.15,
+  emissive: 0x0c0303,
+  emissiveIntensity: 0.4,
+  fog: true,
+});
+
+const TEETH_COUNT = 28;
+for (let i = 0; i < TEETH_COUNT; i++) {
+  const a = (i / TEETH_COUNT) * Math.PI * 2;
+  const rx = 6.6;
+  const ry = 5.2;
+  const x = Math.cos(a) * rx;
+  const y = -3 + Math.sin(a) * ry;
+  const z = 14.6;
+
+  const len = 2.0 + Math.random() * 0.7;
+  const tooth = new THREE.Mesh(
+    new THREE.ConeGeometry(0.42, len, 4),
+    toothMat,
+  );
+  tooth.position.set(x, y, z);
+
+  // Aim inward toward mouth center, slightly forward
+  const dir = new THREE.Vector3(-x * 0.55, (-3 - y) * 0.55, 1.2).normalize();
+  tooth.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  faceGroup.add(tooth);
+}
+
+// ─── LIGHTING — dramatic side/back/under ───
+// Back light: strong cold blue behind head — silhouettes the shape against fog
+const backLight = new THREE.PointLight(0x2a4488, 20, 70, 1.4);
+backLight.position.set(0, 8, -22);
+faceGroup.add(backLight);
+
+// Side lights: purple left, cyan right — dramatic shape definition
+const sideLightL = new THREE.PointLight(0x8844cc, 9, 45, 1.5);
+sideLightL.position.set(-24, 3, 6);
+faceGroup.add(sideLightL);
+
+const sideLightR = new THREE.PointLight(0x44aacc, 7, 42, 1.5);
+sideLightR.position.set(24, 2, 6);
+faceGroup.add(sideLightR);
+
+// Under light: warm red uplight (classic horror)
+const underLight = new THREE.PointLight(0xcc2211, 6, 35, 1.6);
+underLight.position.set(0, -22, 8);
+faceGroup.add(underLight);
+
+// ─── Bio particles — atmospheric shimmer around the head ───
+const bioGeo = new THREE.BufferGeometry();
+const BIO_COUNT = 150;
+const bioPos = new Float32Array(BIO_COUNT * 3);
+const bioSeed = new Float32Array(BIO_COUNT);
+for (let i = 0; i < BIO_COUNT; i++) {
+  const r = 22 + Math.random() * 18;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  bioPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  bioPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.7;
+  bioPos[i * 3 + 2] = r * Math.cos(phi);
+  bioSeed[i] = Math.random();
+}
+bioGeo.setAttribute('position', new THREE.BufferAttribute(bioPos, 3));
+bioGeo.setAttribute('seed', new THREE.BufferAttribute(bioSeed, 1));
+
+const bioMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0 },
+    uOpacity: { value: 0.35 },
+    uColor: { value: new THREE.Color(0x3366aa) },
+  },
+  vertexShader: `
+    attribute float seed;
+    uniform float uTime;
+    varying float vAlpha;
+    void main() {
+      vec3 p = position;
+      float t = uTime + seed * 100.0;
+      p.x += sin(t * 0.25 + seed * 6.0) * 1.8;
+      p.y += cos(t * 0.2 + seed * 3.0) * 1.4;
+      p.z += sin(t * 0.3 + seed * 8.0) * 1.8;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = (2.0 + seed * 3.0) * (200.0 / max(length(mv.xyz), 1.0));
+      vAlpha = 0.4 + 0.6 * sin(t * 2.0 + seed * 10.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uOpacity;
+    varying float vAlpha;
+    void main() {
+      vec2 uv = gl_PointCoord - 0.5;
+      if (length(uv) > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, length(uv)) * vAlpha * uOpacity;
+      gl_FragColor = vec4(uColor, a);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const bioParticles = new THREE.Points(bioGeo, bioMat);
+faceGroup.add(bioParticles);
+
+// Face starts invisible / inert in the void
+faceGroup.visible = false;
 
 // ════════════════════════════════════════════════════════════
 //   COLLISION
@@ -1260,7 +1210,7 @@ function updatePlayer(dt) {
 function onWaterStateChange(wasSwimming) {
   if (state.isSwimming) {
     scene.fog.color.setHex(0x031a20);
-    scene.fog.density = state.inVoid ? 0.016 : 0.16;
+    scene.fog.density = state.inVoid ? 0.014 : 0.16;
     document.body.classList.add('underwater');
     if (audioCtx) {
       ambientGain.gain.setTargetAtTime(0.08, audioCtx.currentTime, 0.3);
@@ -1280,8 +1230,12 @@ function onWaterStateChange(wasSwimming) {
 }
 
 function onEnterVoid() {
-  scene.fog.color.setHex(0x00121a);
-  scene.fog.density = 0.016;
+  scene.fog.color.setHex(0x000a12);
+  scene.fog.density = 0.014;
+  faceGroup.visible = true;
+  faceGroup.position.copy(faceOriginalPos);
+  faceGroup.scale.setScalar(1);
+
   if (audioCtx) {
     voidHumOsc = audioCtx.createOscillator();
     voidHumOsc.type = 'sine';
@@ -1486,23 +1440,34 @@ function resetSluice() {
 // ════════════════════════════════════════════════════════════
 //   FINALE
 // ════════════════════════════════════════════════════════════
+const _faceLookTmp = new THREE.Vector3();
+
 function updateVoidTimer(dt, now) {
   if (!state.inVoid || state.finalSequence) return;
   state.voidEnteredTime += dt;
 
-  // Face + eye glow fade in over 0.6s after exiting sluice
+  // Face always looks at player
+  _faceLookTmp.copy(camera.position);
+  faceGroup.lookAt(_faceLookTmp);
+
+  // Subtle "breathing" sway — position only (rotation handled by lookAt)
+  faceGroup.position.x = Math.sin(now * 0.0004) * 1.5;
+  faceGroup.position.y = FACE_Y + Math.sin(now * 0.0006) * 0.8;
+
+  // Eye glow fade-in over 0.6s after void entry
   const fadeIn = Math.min(state.voidEnteredTime / 0.6, 1);
-  faceMat.opacity = fadeIn * 0.95;
-  backGlowMat.opacity = fadeIn * 0.55;
-  eyeGlowMat1.opacity = fadeIn * 0.9;
-  eyeGlowMat2.opacity = fadeIn * 0.9;
-
-  // Eye pulse
   const pulse = 0.85 + Math.sin(now * 0.005) * 0.15;
-  eyeGlowSprite1.scale.setScalar(10 * pulse);
-  eyeGlowSprite2.scale.setScalar(10 * pulse);
+  eyeGlowMatL.opacity = fadeIn * pulse;
+  eyeGlowMatR.opacity = fadeIn * pulse;
+  eyeLightL.intensity = 3 * fadeIn;
+  eyeLightR.intensity = 3 * fadeIn;
 
-  // Trigger finale at exactly 3s after entering void
+  // Slight emissive pulse on head, mouth, bio particles
+  headMat.emissiveIntensity = 0.35 + Math.sin(now * 0.003) * 0.1;
+  bioMat.uniforms.uTime.value = now * 0.001;
+  bioMat.uniforms.uOpacity.value = 0.25 + fadeIn * 0.35;
+
+  // Trigger finale at exactly 3s
   if (state.voidEnteredTime >= 3.0) {
     state.finaleTriggered = true;
     triggerFinale();
@@ -1513,56 +1478,66 @@ function triggerFinale() {
   state.finalSequence = true;
   state.finaleTime = 0;
   state.oxygen = 100;
-  state.faceStartPos.copy(faceGroup.position);
+  state.faceStartPos = faceGroup.position.clone();
   if (controls.isLocked) controls.unlock();
   stopAlarm();
   if (audioCtx) ambientGain.gain.setTargetAtTime(0.02, audioCtx.currentTime, 0.3);
 }
+
+const _finaleTargetTmp = new THREE.Vector3();
 
 function updateFinale(dt) {
   if (!state.finalSequence || state.finished) return;
   state.finaleTime += dt;
   const t = state.finaleTime;
 
-  // Camera locks onto face
+  // Camera looks at face
   camera.lookAt(faceGroup.position.x, faceGroup.position.y, faceGroup.position.z);
 
-  // ─── Wake up (0 → 0.4s) ───
+  // Keep face looking at camera as long as it's not too close
+  if (faceGroup.position.distanceTo(camera.position) > 3) {
+    _finaleTargetTmp.copy(camera.position);
+    faceGroup.lookAt(_finaleTargetTmp);
+  }
+
+  // Wake up (0 → 0.4s)
   if (t < 0.4) {
     const w = t / 0.4;
-    faceMat.opacity = 1.0;
-    backGlowMat.opacity = 0.55 + w * 0.4;
-    eyeGlowMat1.opacity = 0.9 + w * 0.1;
-    eyeGlowMat2.opacity = 0.9 + w * 0.1;
-    const grow = 10 + w * 6;
-    eyeGlowSprite1.scale.setScalar(grow);
-    eyeGlowSprite2.scale.setScalar(grow);
+    eyeGlowMatL.opacity = 1.0;
+    eyeGlowMatR.opacity = 1.0;
+    eyeGlowL.scale.setScalar(8 + w * 5);
+    eyeGlowR.scale.setScalar(8 + w * 5);
+    eyeLightL.intensity = 3 + w * 5;
+    eyeLightR.intensity = 3 + w * 5;
+    backLight.intensity = 20 + w * 15;
+    underLight.intensity = 6 + w * 6;
+    throatLight.intensity = 4 + w * 6;
   }
 
   // Flashlight dies
   if (t > 0.15) flashlight.visible = false;
 
-  // Roar at 0.35
+  // Roar at wake-up end
   if (t > 0.35 && !state.roared) {
     state.roared = true;
     playRoar();
   }
 
-  // ─── Lunge (0.4 → 1.1s) ───
+  // Lunge (0.4 → 1.1s)
   if (t > 0.4) {
     const lt = Math.min((t - 0.4) / 0.7, 1);
     const eased = lt * lt * lt;
 
-    const targetX = camera.position.x;
-    const targetY = camera.position.y;
-    const targetZ = camera.position.z;
+    const tx = camera.position.x;
+    const ty = camera.position.y;
+    const tz = camera.position.z;
 
-    faceGroup.position.x = state.faceStartPos.x + (targetX - state.faceStartPos.x) * eased;
-    faceGroup.position.y = state.faceStartPos.y + (targetY - state.faceStartPos.y) * eased;
-    faceGroup.position.z = state.faceStartPos.z + (targetZ - state.faceStartPos.z) * eased;
+    faceGroup.position.x = state.faceStartPos.x + (tx - state.faceStartPos.x) * eased;
+    faceGroup.position.y = state.faceStartPos.y + (ty - state.faceStartPos.y) * eased;
+    faceGroup.position.z = state.faceStartPos.z + (tz - state.faceStartPos.z) * eased;
 
     const scaleUp = 1 + eased * 0.6;
-    faceSprite.scale.set(FACE_SCALE * scaleUp, FACE_SCALE * scaleUp, 1);
+    faceGroup.scale.setScalar(scaleUp);
 
     camera.fov = 72 - eased * 22;
     camera.updateProjectionMatrix();
@@ -1572,7 +1547,7 @@ function updateFinale(dt) {
     }
   }
 
-  // ─── Impact ───
+  // Impact
   if (t > 1.1 && !state.impacted) {
     state.impacted = true;
     fxPass.uniforms.uFlash.value = 1.0;
@@ -1634,14 +1609,16 @@ function respawn() {
   // Reset face
   faceGroup.position.copy(faceOriginalPos);
   faceGroup.scale.setScalar(1);
-  faceGroup.visible = true;
-  faceSprite.scale.set(FACE_SCALE, FACE_SCALE, 1);
-  faceMat.opacity = 0;
-  backGlowMat.opacity = 0;
-  eyeGlowMat1.opacity = 0;
-  eyeGlowMat2.opacity = 0;
-  eyeGlowSprite1.scale.set(10, 10, 1);
-  eyeGlowSprite2.scale.set(10, 10, 1);
+  faceGroup.visible = false;
+  eyeGlowMatL.opacity = 0;
+  eyeGlowMatR.opacity = 0;
+  eyeLightL.intensity = 0;
+  eyeLightR.intensity = 0;
+  eyeGlowL.scale.set(8, 8, 1);
+  eyeGlowR.scale.set(8, 8, 1);
+  backLight.intensity = 20;
+  underLight.intensity = 6;
+  throatLight.intensity = 4;
   camera.fov = 72;
   camera.updateProjectionMatrix();
   fxPass.uniforms.uFlash.value = 0;
@@ -1743,13 +1720,6 @@ function animate() {
     scarePipe.rotation.z = t * 2.5;
     scarePipe.rotation.x = t * 1.2;
     if (scarePipeTime > 0.7) { scarePipe.visible = false; scarePipeActive = false; }
-  }
-
-  // Face idle sway (before finale) — group position wobble
-  if (!state.finalSequence) {
-    const ft = now * 0.001;
-    faceGroup.position.x = Math.sin(ft * 0.2) * 1.5;
-    faceGroup.position.y = FACE_Y + Math.sin(ft * 0.35) * 0.8;
   }
 
   fxPass.uniforms.uTime.value = now * 0.001;
